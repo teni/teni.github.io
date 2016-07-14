@@ -14,17 +14,59 @@
 <script type="text/javascript" src="../code/node.js"> </script>
 <script type="text/javascript" src="../code/graph.js"> </script>
 <script type="text/javascript" src="../lib/d3/d3.min.js"> </script>
+<script type="text/javascript" src="../lib/Chart.js"> </script>
 
 <script type="text/javascript" src="../code/search.js"> </script>
 
 <script type="text/javascript" src="../code/p_queue.js"> </script>
 <script type="text/javascript" src="../code/informed_search.js"> </script>
+<script type="text/javascript" src="../code/iterative_search.js"> </script>
+
 <script type="text/javascript" src="../code/visualisation.js"> </script>
+
+<script type="text/javascript" src="../code/tsp_city.js"> </script>
+<script type="text/javascript" src="../code/tsp_solution.js"> </script>
+<script type="text/javascript" src="../code/tsp_helper.js"> </script>
+
 <script type="text/javascript" src="../code/main.js"> </script>
+<script type="text/javascript" src="../code/nn.js"> </script><script type="text/javascript" src="../code/genetic.js"> </script>
 <script type="text/javascript" src="js/knockout-3.3.0.js"> </script>
 
 
 <script>
+
+var tsp_graph = new graph();
+var lagos =  new node("LOS");
+lagos.heuristic = 1;
+var abuja = new node ("ABV");
+abuja.heuristic = 1;
+var kaduna = new node ("KAD");
+kaduna.heuristic = 1;
+var calabar = new node ("CBQ");
+calabar.heuristic = 1;
+var port_harcourt = new node ("PHC");
+port_harcourt.heuristic = 1;
+
+tsp_graph.add_edge(lagos,abuja,761); 
+tsp_graph.add_edge(lagos,kaduna,889); 
+tsp_graph.add_edge(lagos,calabar,772); 
+tsp_graph.add_edge(lagos,port_harcourt,620);
+ 
+tsp_graph.add_edge(kaduna,abuja,186);
+tsp_graph.add_edge(kaduna,calabar,1034);
+tsp_graph.add_edge(kaduna,port_harcourt,1003);
+ 
+tsp_graph.add_edge(abuja,calabar,729);
+tsp_graph.add_edge(abuja,port_harcourt,616);
+ 
+tsp_graph.add_edge(calabar,port_harcourt,196);
+
+
+var sa_tsp_solution; 
+var tabu_tsp_solution;
+
+
+
 var my_nodes = [];
 var b_graph = new graph();
 
@@ -68,39 +110,6 @@ O.heuristic = 30;
 var W = new node ("W");
 W.heuristic = 20;
 
-
-
-
-
-
-window.onload = function () {
-
-
- function GraphView() {
-    var self = this;
-    
-    self.nodes = ko.observableArray([]);
-    self.algorithms = [{"id":1, "name":"Depth First"},{"id":2, "name":"Breadth First"},{"id":3, "name":"A Star"}];
-   
-
-
-  };
-   sc = new GraphView() ;
-   
- ko.applyBindings(sc);
-
-
-
-var svg = d3.select("div.display").append("svg");
-var w = 800;
-var h = 450;
-svg.attr("width", w);
-svg.attr("height",h);
-
-
-
-  
-
 b_graph.add_edge(A,B,30);  
 
 
@@ -118,7 +127,7 @@ b_graph.add_edge(C,E,2);
 
 
 
-b_graph.add_edge(D,G,300); 
+b_graph.add_edge(D,G,3); 
 b_graph.add_edge(J,K,8);
 
 b_graph.add_edge(G,J,7); 
@@ -132,16 +141,407 @@ b_graph.add_edge(M,K,11);
 b_graph.add_edge(K,O,12);  
 b_graph.add_edge(I,K,9);  
 b_graph.add_edge(M,W,15);  
- b_graph.add_edge(O,W,20); 
+ b_graph.add_edge(O,W,20);
+
+
+
+
+window.onload = function () {
+
+
+ function GraphView() {
+    
+    var self = this;
+	//self.cur_graph = b_graph;
+	
+	// NN stuff
+	self.my_feed_forward = function () {
+	var egs ;
+	switch(self.input_neurons()) {
+	case  2:
+	 egs = self.entries_test().map( function (x) { return [ x.field1(),x.field2()]} );
+	 
+	break;
+
+	case  3:
+	   	  egs = self.entries_test().map( function (x) { return [ x.field1(),x.field2(), x.field3()]} );
+	break;
+	
+	case  4:
+	      	 egs = self.entries_test().map( function (x) { return [ x.field1(),x.field2(), x.field3(), x.field4()]} );
+	break;
+	
+	case  5:
+	         	egs =  self.entries_test().map( function (x) { return [ x.field1(),x.field2(), x.field3(), x.field4(), x.field5()]} );
+	break;
+	
+	}
+	//console.log(egs);
+	
+	
+	//console.log(self.myoutput.entriesx_test());
+	for ( var j = 0 ; j < egs.length ; j++) {
+	//self.myoutput.addLabel_test();
+	
+	var output  = self.neural_net.feed_forward(egs[j]);
+	switch(output.length){
+	case 1:
+		self.myoutput.entriesx_test()[j].field1x(output[0]);
+	break;	
+	case 2:
+		self.myoutput.entriesx_test()[j].field1x(output[0]);	self.myoutput.entriesx_test()[j].field2x(output[1]);
+	break;	
+	case 3:
+	self.myoutput.entriesx_test()[j].field1x(output[0]);	self.myoutput.entriesx_test()[j].field2x(output[1]);
+	self.myoutput.entriesx_test()[j].field2x(output[2]);
+	break;
+	
+	}
+
+	//self.myoutput.entriesx_test()[j]();
+	}
+	
+	};
+	self.train_nn = function () {
+		self.neural_net = new nn(self.input_neurons(),self.hidden_layer_neurons(),self.output_layer_neurons());
+	var egs ;
+	switch(self.input_neurons()) {
+	case  2:
+	 egs = self.entries().map( function (x) { return [ x.field1(),x.field2()]} );
+	 
+	break;
+
+	case  3:
+	   	  egs = self.entries().map( function (x) { return [ x.field1(),x.field2(), x.field3()]} );
+	break;
+	
+	case  4:
+	      	 egs = self.entries().map( function (x) { return [ x.field1(),x.field2(), x.field3(), x.field4()]} );
+	break;
+	
+	case  5:
+	         	egs =  self.entries().map( function (x) { return [ x.field1(),x.field2(), x.field3(), x.field4(), x.field5()]} );
+	break;
+	
+	}
+	var target;
+	
+	switch (self.output_layer_neurons() ){
+case 1:
+   target = self.entriesx().map( function(x) { return [x.field1x()]});
+break;
+
+case 2:
+  target = self.entriesx().map( function(x) { return [x.field1x(), x.field2x()]});
+break;
+
+case 3:
+ target = self.entriesx().map( function(x) { return [x.field1x(), x.field2x(), x.field3x()]});
+break;
+	}
+	
+	
+	self.neural_net.train(egs, target, self.iterations(), self.rho() , self.m());
+	//n.train(pat, targs, 400, 0.5, 0.1);
+        //n.test(pat);
+		
+		
+	};
+	self.input_neurons = ko.observable(2);
+	self.hidden_layer_neurons = ko.observable(2);
+	self.output_layer_neurons = ko.observable(1);
+	
+	self.output_threshold = ko.observable(0.5);
+	self.rho = ko.observable(0.3);
+	self.m = ko.observable(0.1);
+	self.iterations = ko.observable(300);
+	self.neural_net = undefined;
+	
+	function example2 (field1,field2){
+	var self = this;
+	self.field1 = ko.observable(field1);
+	self.field2 = ko.observable(field2);
+	}
+	function example3 (field1,field2,field3){
+	var self = this;
+	self.field1 = ko.observable(field1);
+	self.field2 = ko.observable(field2);
+	self.field3 = ko.observable(field3);
+	}
+	function example4 (field1,field2,field3,field4){
+	var self = this;
+	self.field1 = ko.observable(field1);
+	self.field2 = ko.observable(field2);
+	self.field3 = ko.observable(field3);
+	self.field4 = ko.observable(field4);
+	}
+	function example5 (field1,field2,field3,field4,field5){
+	var self = this;
+	self.field1 = ko.observable(field1);
+	self.field2 = ko.observable(field2);
+	self.field3 = ko.observable(field3);
+	self.field4 = ko.observable(field4);
+	self.field5 = ko.observable(field5);
+	}
+	
+	function label1 (field1) {
+	var self = this;
+	self.field1x = ko.observable(field1);
+	}
+	function label2 (field1,field2) {
+	var self = this;
+	self.field1x = ko.observable(field1);
+	self.field2x = ko.observable(field2);
+	}
+	function label3 (field1, field2, field3) {
+	var self = this;
+	self.field1x = ko.observable(field1);
+	self.field2x = ko.observable(field2);
+	self.field3x = ko.observable(field3);
+	}
+	function label () {
+	self.entriesx = ko.observableArray([]);
+	self.addLabel = function () {
+	switch (self.output_layer_neurons() ){
+case 1:
+ self.entriesx.push(new label1(""));
+break;
+
+case 2:
+ self.entriesx.push(new label2("",""));
+break;
+
+case 3:
+ self.entriesx.push(new label3("","",""));
+break;
+	}
+	}
+	self.removeLabel = function() {
+	    self.entriesx.remove(this);
+	}
+	return self;
+	}
+	
+	function label_test () {
+	self.entriesx_test = ko.observableArray([]);
+	self.addLabel_test = function () {
+	switch (self.output_layer_neurons() ){
+case 1:
+ self.entriesx_test.push(new label1(""));
+break;
+
+case 2:
+ self.entriesx_test.push(new label2("",""));
+break;
+
+case 3:
+ self.entriesx_test.push(new label3("","",""));
+break;
+	}
+	}
+	self.removeLabel_test = function() {
+	    self.entriesx_test.remove(this);
+	}
+	return self;
+	}
+	
+	function example () {
+	self.entries = ko.observableArray([]);
+	
+	self.addExample = function() {
+	
+	switch(self.input_neurons()) {
+	case  2:
+	 self.entries.push(new example2("",""));
+	break;
+
+	case  3:
+	   	 self.entries.push(new example3("","",""));
+	break;
+	
+	case  4:
+	     	 self.entries.push(new example4("","","",""));
+	break;
+	
+	case  5:
+	     self.entries.push(new example5("","","","",""));
+	break;
+	
+	}
+	};
+	self.removeExample = function() {
+	    self.entries.remove(this);
+	}
+	return self;
+	}
+	function example_test () {
+	self.entries_test = ko.observableArray([]);
+	
+	self.addExample_test = function() {
+	
+	switch(self.input_neurons()) {
+	case  2:
+	 self.entries_test.push(new example2("",""));
+	break;
+
+	case  3:
+	   	 self.entries_test.push(new example3("","",""));
+	break;
+	
+	case  4:
+	     	 self.entries_test.push(new example4("","","",""));
+	break;
+	
+	case  5:
+	     self.entries_test.push(new example5("","","","",""));
+	break;
+	
+	}
+	//self.myoutput.entriesx_test.push(new label());
+	self.addLabel_test();
+	};
+	self.removeExample_test = function() {
+	    self.entries_test.remove(this);
+	}
+	return self;
+	}
+	
+	
+	self.myexample = new example();
+	self.mylabel = new label();
+	// init with the XOR data
+	self.myexample.addExample();
+	self.myexample.entries()[0].field1(0);
+	self.myexample.entries()[0].field2(0);
+	self.mylabel.addLabel();
+	self.mylabel.entriesx()[0].field1x(0);
+	
+	self.myexample.addExample();	
+	self.myexample.entries()[1].field1(0);
+	self.myexample.entries()[1].field2(1);
+	self.mylabel.addLabel();
+	self.mylabel.entriesx()[1].field1x(1);
+	
+	self.myexample.addExample();	
+	self.myexample.entries()[2].field1(1);
+	self.myexample.entries()[2].field2(0);
+	self.mylabel.addLabel();
+	self.mylabel.entriesx()[2].field1x(1);
+	
+	self.myexample.addExample();	
+	self.myexample.entries()[3].field1(1);
+	self.myexample.entries()[3].field2(1);
+	self.mylabel.addLabel();
+	self.mylabel.entriesx()[3].field1x(0);
+	
+	console.log(self.myexample.entries());
+	//self.myexample.entries()[self.myexample.entries().length].field2("0");
+	
+	
+	
+	self.mytest = new example_test();
+	self.myoutput = new label_test();
+	
+	self.labels  = ko.observableArray([]);
+	  
+	
+	
+	self.sa_avg   = ko.observable(0);
+	self.tabu_avg = ko.observable(0);
+    self.cur_graph = ko.observable(new graph());
+    self.nodes = ko.observableArray([]);
+    self.algorithms = [{"id":1, "name":"Depth First"},{"id":2, "name":"Breadth First"},{"id":3, "name":"A Star"}];
+	
+    self.start_temp_xs     = [50,100,200,500];
+    self.temp_step_xs      = [0.1,0.5,1,5];
+    self.tabu_iterations_xs= [50,100,200,500,750];
+    self.tabu_size_xs      = [2,5,10,15,20,30,100 ];
+	
+	self.bit_length_xs = [4,8,16,32,64,128];
+self.population_xs = [50,100,200,500,1000];
+self.objective_function_xs = [ {"name": "15x - x^2", "function": function (x) { return 15 * x - (x*x)} } , {"name": "Ackley",
+"function": 
+function (x) { return -20 * Math.exp (  -0.2 * (Math.pow( ( x*x)  , 0.5) )   )  - Math.exp( Math.cos(2 * Math.PI * x)) + 20 + Math.exp(1); }
+} ,
+{"name": "Griewank",
+"function": 
+function (x) { return  1 +  (x*x/4000) - Math.cos(x) }
+}
+,
+{"name": "Rastrigin",
+"function": 
+function (x) { return 10 + ((x*x) - 10 * Math.cos(2 * Math.PI * x)) }
+}
+
+,
+
+{"name": "Rosenbrock",
+"function": 
+function (x) { return -20 * Math.exp (  -0.2 * (Math.pow( ( x*x)  , 0.5) )   )  - Math.exp( Math.cos(2 * Math.PI * x)) + 20 + Math.exp(1); }
+}
+
+
+];
+self.pc  = ko.observable(0.85);
+self.cross_locations = ko.observableArray();
+self.pm= ko.observable(0.001);
+self.ga_iter= ko.observable(1000);
+self.ga_upper_bound= ko.observable(5);
+self.ga_lower_bound= ko.observable(0);
+
+self.ga_population_avg= ko.observable();
+self.the_bit_length = ko.observable("8");
+self.the_function = ko.observable();
+self.the_population = ko.observable(200);	
+self.run_ga = function () {
+//(bit_length, population,range, obj_function, probability_of_cross, array_of_switch_locations, probability_of_mutation, num_of_iter, values_range_array )
+
+var h = genetic.ga(self.the_bit_length(), self.the_population(), [self.ga_lower_bound(),self.ga_upper_bound()], self.the_function()["function"] , self.pc(), self.cross_locations(),self.pm(), self.ga_iter() , [self.ga_lower_bound(),self.ga_upper_bound()]);
+console.log("Done : "+h);
+self.ga_population_avg( h );
+return;
+
+}
+            
+			
+			
+			
+
+
+  };
+   sc = new GraphView() ;
+   
+ ko.applyBindings(sc);
+
+
+
+var svg = d3.select("div.display").append("svg");
+var w = 800;
+var h = 450;
+svg.attr("width", w);
+svg.attr("height",h);
+
+
+var svg_sa_tabu = d3.select("div.display2").append("svg");
+var w1 = 250;
+var h1 = 200;
+svg_sa_tabu.attr("width", w1);
+svg_sa_tabu.attr("height",h1);
+
+
+
   
 
-for ( var i = 0 ; i < b_graph.nodes.length ; i++ ) {
+ 
+  
 
-sc.nodes.push(  {"elem":b_graph.nodes[i],"index":i});
+for ( var i = 0 ; i < sc.cur_graph().nodes.length ; i++ ) {
+
+sc.nodes.push(  {"elem":sc.cur_graph().nodes[i],"index":i});
 //my_nodes.push(b_graph.nodes[i]);
 }
 
-graph_info =vis.graph(b_graph,svg  , w,h); 
+graph_info =vis.graph(sc.cur_graph(),svg  , w,h); 
 
 
 
@@ -169,6 +569,241 @@ svg.select("#OA").attr("stroke", "red");
 var add_node = document.getElementById("add_node");
 var add_edge = document.getElementById("add_edge");
 var search_go = document.getElementById("search_go");
+var compare_sa_tabu = document.getElementById("compare_sa_tabu");
+
+compare_sa_tabu.addEventListener("click", function () { 
+var tabu_console =document.getElementById("tabu_console");
+var sa_console =document.getElementById("sa_console");
+graph_info =vis.graph(tsp_graph,svg_sa_tabu  , w,h, undefined, 0.16);
+
+sa_tsp_solution  = new tsp_solution();
+tabu_tsp_solution = new tsp_solution();
+
+for ( var k = 0 ; k < tsp_graph.nodes.length ; k++ ) {
+ sa_tsp_solution.cities.push(new tsp_city(tsp_graph.nodes[k].value, tsp_graph.nodes[k].cx, tsp_graph.nodes[k].cy ) ); 
+ tabu_tsp_solution.cities.push( new tsp_city(tsp_graph.nodes[k].value, tsp_graph.nodes[k].cx, tsp_graph.nodes[k].cy ) ); 
+ 
+}
+
+
+//sa_tsp_solution   
+//tabu_tsp_solution 
+
+// sa config start temp
+// temp step
+
+//tabu config
+// tabu_iterations
+// tabu list size
+var start_temp = document.getElementById("start_temp").value;
+var	temp_step =  document.getElementById("temp_step").value;
+var	tabu_iterations =  document.getElementById("tabu_iter").value;
+var	tabu_size =  document.getElementById("tabu_size").value;
+var	runs =  document.getElementById("runs").value;
+var tsp_help = tsp_helper();
+
+var final_sa = iterative_search.simulated_annealing( start_temp, temp_step , sa_tsp_solution , tsp_help.peturb , tsp_help.calculate_mileage );
+
+sa_console.value = final_sa.print() +":"+tsp_help.calculate_mileage(final_sa)   ;
+//sa_console.value= "Hello";
+
+var final_tabu = iterative_search.tabu(tabu_tsp_solution ,  tsp_help.solution_hash, tsp_help.peturb,tsp_help.calculate_mileage, tabu_iterations, tabu_size)[0];
+console.log(final_tabu);
+tabu_console.value = final_tabu.print() +":"+tsp_help.calculate_mileage(final_tabu)   ;
+
+for ( var jk = 0 ; jk< runs ; jk++) {
+sc.sa_avg  (0.5 * (sc.sa_avg() + tsp_help.calculate_mileage(final_sa)) );
+sc.tabu_avg ( 0.5 *  ( sc.tabu_avg() + tsp_help.calculate_mileage(final_tabu) )); 
+
+}
+
+// Run sa and tabu con
+});
+
+
+var compare_sa_tabu_auto= document.getElementById("compare_sa_tabu_auto");
+
+compare_sa_tabu_auto.addEventListener("click", function () { 
+ 
+  
+	sa_tsp_solution  = new tsp_solution();
+tabu_tsp_solution = new tsp_solution();
+
+for ( var k = 0 ; k < tsp_graph.nodes.length ; k++ ) {
+ sa_tsp_solution.cities.push(new tsp_city(tsp_graph.nodes[k].value, tsp_graph.nodes[k].cx, tsp_graph.nodes[k].cy ) ); 
+ tabu_tsp_solution.cities.push( new tsp_city(tsp_graph.nodes[k].value, tsp_graph.nodes[k].cx, tsp_graph.nodes[k].cy ) ); 
+ 
+}
+	// maintain an array for each dataset
+	var start_temp_dataset = [];
+	var step_size_dataset  = [];
+	var tabu_iter_dataset  = [];
+	var tabu_size_dataset  = [];
+	var sa_result_dataset = [];
+	var tabu_result_dataset = [];
+	var tsp_help = tsp_helper();
+	var iter_label = [];
+	var count = 0;
+	for ( var t = 0 ; t < sc.start_temp_xs.length ; t++ ) {
+	
+	   for ( var ts = 0 ; ts < sc.temp_step_xs.length; ts++ ) {
+	   
+	       for ( var tabu_i = 0 ; tabu_i < sc.tabu_iterations_xs.length ; tabu_i++) {
+		   
+		     for ( var tabu_s = 0 ; tabu_s < sc.tabu_size_xs.length ; tabu_s++) {
+			 ++count;
+			 // Run test here.
+			 if  (count%30 == 0 ) {
+			 start_temp_dataset.push(sc.start_temp_xs[t]); 
+			 step_size_dataset.push(sc.temp_step_xs[ts]);  
+			 tabu_iter_dataset.push(sc.tabu_iterations_xs[tabu_i]);  
+			 tabu_size_dataset.push(sc.tabu_size_xs[tabu_s]);
+
+            iter_label.push(count);
+			
+            var final_sa = iterative_search.simulated_annealing( sc.start_temp_xs[t], sc.temp_step_xs[ts], sa_tsp_solution , tsp_help.peturb , tsp_help.calculate_mileage );
+
+            sa_result_dataset.push(tsp_help.calculate_mileage(final_sa))   ;
+//sa_console.value= "Hello";
+
+             var final_tabu = iterative_search.tabu(tabu_tsp_solution ,  tsp_help.solution_hash, tsp_help.peturb,tsp_help.calculate_mileage, sc.tabu_iterations_xs[tabu_i], sc.tabu_size_xs[tabu_s])[0];
+             tabu_result_dataset.push(tsp_help.calculate_mileage(final_tabu) );
+               
+
+			 }
+			 }
+		   
+		   }
+	   
+	   
+	   }
+	
+	}
+    console.log(start_temp_dataset);
+    console.log(step_size_dataset);
+	console.log(tabu_iter_dataset);
+	console.log(tabu_size_dataset);
+	console.log(sa_result_dataset );
+	console.log(tabu_result_dataset);
+
+
+		var lineChartData = {
+			labels : iter_label,
+			datasets : [
+			
+				{
+					label: "Init Temp",
+					fillColor : "rgba(220,220,220,0.2)",
+					strokeColor : "rgba(220,220,220,1)",
+					pointColor : "rgba(220,220,220,1)",
+					pointStrokeColor : "#fff",
+					pointHighlightFill : "#fff",
+					pointHighlightStroke : "rgba(220,220,220,1)",
+					data :  start_temp_dataset
+				},
+				{
+					label: "Temp Change",
+					fillColor : "rgba(151,187,205,0.2)",
+					strokeColor : "rgba(151,187,205,1)",
+					pointColor : "rgba(151,187,205,1)",
+					pointStrokeColor : "#fff",
+					pointHighlightFill : "#fff",
+					pointHighlightStroke : "rgba(151,187,205,1)",
+					data : step_size_dataset
+				}
+				, 
+				{
+					label: "Tabu Iter",
+					fillColor : "rgba(15,187,205,0.2)",
+					strokeColor : "rgba(151,187,205,1)",
+					pointColor : "rgba(151,187,205,1)",
+					pointStrokeColor : "#fff",
+					pointHighlightFill : "#fff",
+					pointHighlightStroke : "rgba(151,187,205,1)",
+					data : tabu_iter_dataset
+				}
+				, 	
+				{
+					label: "Tabu Size",
+					fillColor : "rgba(151,187,3,0.2)",
+					strokeColor : "rgba(151,187,205,1)",
+					pointColor : "rgba(151,187,205,1)",
+					pointStrokeColor : "#fff",
+					pointHighlightFill : "#fff",
+					pointHighlightStroke : "rgba(151,187,205,1)",
+					data : tabu_size_dataset
+				},{
+					label: "SA Result ",
+					fillColor : "red",
+					strokeColor : "rgba(151,187,205,1)",
+					pointColor : "rgba(151,187,205,1)",
+					pointStrokeColor : "#fff",
+					pointHighlightFill : "#fff",
+					pointHighlightStroke : "rgba(151,187,205,1)",
+					data : sa_result_dataset
+				},	
+{
+					label: "Tabu Result [TABU]",
+					fillColor : "rgba(151,1,3,0.2)",
+					strokeColor : "rgba(151,187,205,1)",
+					pointColor : "rgba(151,187,205,1)",
+					pointStrokeColor : "#fff",
+					pointHighlightFill : "#fff",
+					pointHighlightStroke : "rgba(151,187,205,1)",
+					data : tabu_result_dataset
+				},			
+			   
+			 
+			]
+
+		};
+		
+		
+		var SA_resultsData = {
+			labels : start_temp_dataset,
+			datasets : [
+			
+			{
+					label: "Temp Change",
+					fillColor : "rgba(0,187,205,0.2)",
+					strokeColor : "rgba(0,187,205,1)",
+					pointColor : "rgba(0,187,205,1)",
+					pointStrokeColor : "#fff",
+					pointHighlightFill : "#fff",
+					pointHighlightStroke : "rgba(0,187,205,1)",
+					data : step_size_dataset
+				}
+				,	
+				
+			{
+					label: "SA Result ",
+					fillColor : "rgba(200,0,0,0.2)",
+					strokeColor : "rgba(151,187,205,1)",
+					pointColor : "rgba(151,187,205,1)",
+					pointStrokeColor : "#fff",
+					pointHighlightFill : "#fff",
+					pointHighlightStroke : "rgba(151,187,205,1)",
+					data : sa_result_dataset
+				}			
+			   
+			 
+			]
+
+		};
+		
+
+		var ctx = document.getElementById("canvas").getContext("2d");
+		var sa_res_ctx = document.getElementById("canvas1").getContext("2d");
+		window.myLine = new Chart(ctx).Line(lineChartData, {
+			responsive: false
+		});
+		
+		window.myLine1 = new Chart(sa_res_ctx).Line(SA_resultsData, {
+			responsive: false
+		});
+		
+});
+
 add_node.addEventListener("click", function () { 
 var node_heuristic =document.getElementById("node_heuristic") ;
 var node_label = document.getElementById("node_label");
@@ -192,13 +827,13 @@ var from_node = document.getElementById("from_node");
 var to_node = document.getElementById("to_node");
 var weight = document.getElementById("weight");
 
-b_graph.add_edge(sc.nodes()[from_node.value].elem,sc.nodes()[to_node.value].elem, weight.value );
+sc.cur_graph().add_edge(sc.nodes()[from_node.value].elem,sc.nodes()[to_node.value].elem, weight.value );
 
 
 console.log(sc.nodes()[from_node.value].elem);
 console.log(sc.nodes()[to_node.value].elem);
 console.log(weight.value);
-graph_info =vis.graph(b_graph,svg  , w,h, undefined);
+graph_info =vis.graph(sc.cur_graph(),svg  , w,h, undefined, 0.11);
 weight.value = "";
 });
 
@@ -209,17 +844,17 @@ var sought_node = document.getElementById("sought_node");
 switch( search_algorithm.value ) {
 
 case "3":
-var path = informed_search.a_star(b_graph, sc.nodes()[sought_node.value].elem);
-graph_info =vis.graph(b_graph,svg  , w,h, path);
+var path = informed_search.a_star(sc.cur_graph(), sc.nodes()[sought_node.value].elem);
+graph_info =vis.graph(sc.cur_graph(),svg  , w,h, path,0.11);
 break;
 case "2":
-var path = search.breadth_first_search(b_graph, sc.nodes()[sought_node.value].elem);
-graph_info =vis.graph(b_graph,svg  , w,h, path);
+var path = search.breadth_first_search(sc.cur_graph(), sc.nodes()[sought_node.value].elem);
+graph_info =vis.graph(sc.cur_graph(),svg  , w,h, path,0.11);
 break;
 
 case "1":
-var path = search.depth_first_search(b_graph, sc.nodes()[sought_node.value].elem);
-graph_info =vis.graph(b_graph,svg  , w,h, path);
+var path = search.depth_first_search(sc.cur_graph(), sc.nodes()[sought_node.value].elem);
+graph_info =vis.graph(sc.cur_graph(),svg  , w,h, path,0.11);
 console.log(path);
 break;
 
@@ -234,8 +869,55 @@ break;
 });
 
 
+add_graph.addEventListener ("click", function () {
+var add_new_graph = document.getElementById("add_new_graph");
+var graph_type = document.getElementById("graph_type");
+
+switch( graph_type.value ) {
+
+case "3":
+// Preloaded problem
+
+sc.cur_graph (b_graph );
+break;
 
 
+case "2":
+// TSP problem
+
+sc.cur_graph (tsp_graph );
+break;
+
+case "1":
+// Blank graph
+
+sc.cur_graph ( new graph() );
+break;
+
+
+
+
+}
+
+sc.nodes([]);
+for ( var i = 0 ; i < sc.cur_graph().nodes.length ; i++ ) {
+
+sc.nodes.push(  {"elem":sc.cur_graph().nodes[i],"index":i});
+//my_nodes.push(b_graph.nodes[i]);
+}
+
+graph_info =vis.graph(sc.cur_graph(),svg  , w,h, undefined, 0.11);
+
+
+});
+
+// some numbers are wrong
+// reset instagram password
+// payment on site.
+
+//(bit_length, population,range, obj_function, probability_of_cross, array_of_switch_locations, probability_of_mutation, num_of_iter, values_range_array )
+
+//console.log( genetic.ga(8, 500, [1,10], function(x) { return 15*x - (x*x) } , 0.85, [0,4,5], 0.001, 3000 , [-5,10]) );
 }
 
 
@@ -276,8 +958,135 @@ stroke-width : 5;
 <div class="display" style="background: rgb(243, 232, 246); min-height : 459px">
 
 </div>
+<div >
+<div class=" col-md-4 display2" style="background: red; ">
+
+</div>
+
+<div class="col-md-4" >
+<h5> Simulated Anealing  <span style="font-weight:bold; color:red" data-bind="html:sa_avg" > </span> </h5>
+<textarea id="sa_console" class="form-control" rows="8"  style="height : 100%"></textarea>
+</div>
+<div class="col-md-4" >
+<h5> Tabu Search <span style="font-weight:bold; color:red" data-bind="html:tabu_avg" > </span> </h5>
+<textarea id="tabu_console" class="form-control" rows="8" style="height : 100%"></textarea>
+</div>
+
+<div class="col-md-6">
+
+				<canvas id="canvas" height="300" width="350"></canvas>
+		
+
+</div>
+
+
+<div class="col-md-12">
+                 <div class="col-md-8">
+				 <label> Input Size </label>
+				<select id="input_size" class="form-control ff-rounded " data-bind="value:input_neurons,options: function() {return [2,3,4,5]}(), optionsText : function (item) { return item}, optionsValue :function (item) { return item;}, optionsCaption:'Select Input Size'">				  
+			  </select> </div> <div class="col-md-4" > 
+			  
+			  <button style="margin-top: 25px" data-bind="click: myexample.addExample" class="btn btn-success " >Add Example</button> </div>
+			  <div class="col-md-8">
+              <label> Target Labels </label>
+			  <select id="output_size" class="form-control col-md-8 ff-rounded" data-bind="value:output_layer_neurons,options: function() {return [1,2,3]}(), optionsText : function (item) { return item}, optionsValue :function (item) { return item;}, optionsCaption:'Select Label Size'">				  
+			  </select></div><div class="col-md-4" >
+			  <button style="margin-top: 25px" class="btn btn-primary" data-bind="click: mylabel.addLabel">Add Label</button> </div>
+			  <div>
+			  <div class="col-md-8">
+			   <h4> Examples </h4>
+			  <table >
+<tbody data-bind="foreach:myexample.entries">
+  <tr> 
+   <td> <input data-bind="value:field1"  style="width:40px" type="text"/></td>
+    <td> <input data-bind="value: field2"  style="width:40px" type="text"/></td>
+	 <td data-bind="if: $parent.input_neurons() > 2"> <input data-bind=" value: field3"  style="width:40px" type="text"/></td>
+	  <td data-bind="if: $parent.input_neurons() > 3"> <input data-bind=" value: field4"  style="width:40px" type="text"/></td>
+	  <td data-bind="if: $parent.input_neurons() > 4"> <input data-bind=" value: field5"  style="width:40px" type="text"/></td>
+	  <td> <button class="btn-danger" data-bind="click:$parent.myexample.removeExample" >X </button> </td>
+  </tr>
+  </tbody>
+
+			  </table>
+			  <br>
+			  <label>RHO </label>
+			  <input  style="width: 40px" data-bind="value:rho" type="text"/>
+			  
+			  <label> M</label>
+			  <input data-bind="value:m"   style="width: 40px" type="text"/>
+			  
+			  <label>Iterations </label>
+			  <input data-bind="value:iterations"  style="width: 40px" type="text"/>
+			  <button  data-bind="click: train_nn" class="btn">Train Network </button>
+			  </div>
+			  <div class="col-md-4">
+			  <h4> Labels </h4>
+			  <table>
+			  <tbody data-bind="foreach:mylabel.entriesx ">
+ <tr> 
+   <td> <input data-bind="value:field1x"  style="width:40px" type="text"/></td>
+    <td  data-bind="if: $parent.output_layer_neurons()>  1"> <input data-bind="value: field2x"  style="width:40px" type="text"/></td>
+	 <td data-bind="if: $parent.output_layer_neurons() > 2"> <input data-bind=" value: field3x"  style="width:40px" type="text"/></td>
+	  <td data-bind="if: $parent.output_layer_neurons() > 3"> <input data-bind=" value: field4x"  style="width:40px" type="text"/></td>
+	  <td data-bind="if: $parent.output_layer_neurons() > 4"> <input data-bind=" value: field5x"  style="width:40px" type="text"/></td>
+	  <td> <button class="btn-danger" data-bind="click:$parent.myexample.removeLabel" > X </button></td>
+  </tr>
+			  </table>
+			  </div>
+			  </div>
+	
+
+
+
 <div>
-<textarea class="form-control" style="height : 100%"></textarea>
+			  <div class="col-md-8">
+			   <h4> Test Example </h4>
+			  <table >
+<tbody data-bind="foreach:mytest.entries_test">
+  <tr> 
+   <td> <input data-bind="value:field1"  style="width:40px" type="text"/></td>
+    <td> <input data-bind="value: field2"  style="width:40px" type="text"/></td>
+	 <td data-bind="if: $parent.input_neurons() > 2"> <input data-bind=" value: field3"  style="width:40px" type="text"/></td>
+	  <td data-bind="if: $parent.input_neurons() > 3"> <input data-bind=" value: field4"  style="width:40px" type="text"/></td>
+	  <td data-bind="if: $parent.input_neurons() > 4"> <input data-bind=" value: field5"  style="width:40px" type="text"/></td>
+	  <td> <button class="btn-danger" data-bind="click:$parent.mytest.removeExample_test" >X </button> </td>
+  </tr>
+  </tbody>
+
+			  </table>
+			  <br>
+			  <button data-bind="click: mytest.addExample_test" class="btn btn-warning">Add Test</button>
+			  <button data-bind="click: my_feed_forward" class="btn btn-success">Feed Forward </button>
+			  </div>
+			  <div class="col-md-4">
+			  <h4> Outputs </h4>
+			  <table>
+			  <tbody data-bind="foreach:myoutput.entriesx_test ">
+ <tr> 
+   <td> <input data-bind="value:field1x"  style="width:40px" type="text"/></td>
+    <td  data-bind="if: $parent.output_layer_neurons()>  1"> <input data-bind="value: field2x"  style="width:40px" type="text"/></td>
+	 <td data-bind="if: $parent.output_layer_neurons() > 2"> <input data-bind=" value: field3x"  style="width:40px" type="text"/></td>
+	  <td data-bind="if: $parent.output_layer_neurons() > 3"> <input data-bind=" value: field4x"  style="width:40px" type="text"/></td>
+	  <td data-bind="if: $parent.output_layer_neurons() > 4"> <input data-bind=" value: field5x"  style="width:40px" type="text"/></td>
+	  <td> <button class="btn-danger" data-bind="click:$parent.mytest.removeLabel_test" > X </button></td>
+  </tr>
+			  </table>
+			  </div>
+			  </div>	
+
+</div>
+
+
+
+
+
+<div class="col-md-6">
+
+				<canvas id="canvas1" height="300" width="350"></canvas>
+		
+
+</div>
+
 </div>
 
 </div>
@@ -290,10 +1099,14 @@ stroke-width : 5;
             
             <div class="col-md-8">
             <label> Select  Preloaded Graphs: </label>
-            <select class="form-control"> <option> Travelling Salesman Problem</option>  </select> </div>
+            <select id="graph_type" class="form-control">
+            <option value="1"> Blank Graph</option>
+			<option value="3"> Preloaded Graph</option> 
+			<option value="2"> TSP- Nigerian Cities</option> 
+			  </select> </div>
             <div class="col-md-3">
             
-            <button class="btn btn-success menu_button"> Add Graph </button></div> 
+            <button id="add_graph" class="btn btn-success menu_button"> Add Graph </button></div> 
         </div>
         <div class="row"  style="background : #EDEEEC; padding : 7px; border-bottom : 1px solid #ccc">
              <h4> Add a node </h4>
@@ -343,6 +1156,135 @@ stroke-width : 5;
         </div>
     
 
+	
+	  <div class="row"  style="background : #069; color:white; padding : 7px; border-bottom : 1px solid #ccc" >
+             <h4> Compare SA and Tabu Search Solutions of TSP </h4>
+            <div class="col-md-6">
+			
+			   <h6> SA Config </h6>
+			   <label> Starting Temp. </label>
+            <select required name="search" id="start_temp" class="form-control ff-rounded" data-bind="options: start_temp_xs , optionsText : function (item) { return item}, optionsValue :function (item) { return item}, optionsCaption:'Starting Temp'">				  
+			  </select> 
+			   <label> Temp Step size </label>
+            <select required name="search" id="temp_step" class="form-control ff-rounded" data-bind="options: temp_step_xs , optionsText : function (item) { return item}, optionsValue :function (item) { return item}, optionsCaption:'Temp Step size'">				  
+			  </select> 
+			</div>
+			<div class="col-md-6">
+			 <h6> Tabu Config </h6>
+			   <label> Tabu Iterations. </label>
+            <select required name="search" id="tabu_iter" class="form-control ff-rounded" data-bind="options: tabu_iterations_xs , optionsText : function (item) { return item}, optionsValue :function (item) { return item}, optionsCaption:'Tabu Iterations'">				  
+			  </select> 
+			   <label> Tabu list Size </label>
+            <select required name="search" id="tabu_size" class="form-control ff-rounded" data-bind="options: tabu_size_xs , optionsText : function (item) { return item}, optionsValue :function (item) { return item}, optionsCaption:'Tabu list Size'">				  
+			  </select> 
+			  <label> Test Runs </label>
+			     <select required name="search" id="runs" class="form-control ff-rounded" data-bind="options: tabu_size_xs , optionsText : function (item) { return item * 10}, optionsValue :function (item) { return item * 10}, optionsCaption:'Runs'">				  
+			  </select>
+			</div>
+            
+
+            <div class="col-md-12">
+            <button id="compare_sa_tabu" class="btn btn-primary menu_button"> Run Comparison </button>  
+			
+			<button id="compare_sa_tabu_auto" class="btn btn-danger menu_button"> Run Automated Test </button> 
+           <br>
+		    <br>
+			 <br>
+			  <br>
+			   <br>
+			    <br>
+				 <br>
+				  <br>
+            </div> 
+           
+        </div>
+		
+		 <div class="row"  style="background : #222; color:white; padding : 7px; border-bottom : 1px solid #ccc" >
+             <h4>  </h4>
+            <br>
+             <br>
+			  <br>
+			   <br> <br>
+			   <br>
+             <br>
+			  <br>
+			   <br> <br>
+			   <br>
+             <br>
+			  <br>
+			   <br> <br>
+			   <br>
+             <br>
+			  <br>
+			   <br> <br>
+			   <br>
+             <br>
+			  <br>
+			   <br> <br>
+			   <br>
+            
+
+            
+           
+        </div>
+		
+		 <div class="row"  style="background : #069; color:white; padding : 7px; border-bottom : 1px solid #ccc" >
+             <h4> Genetic Algorithm</h4>
+            <div class="col-md-12">
+			 <h6> GA Config </h6>
+			   <label> Bit Length for Individual </label>
+            <select required name="search" id="bit_length" class="form-control ff-rounded" data-bind="value: the_bit_length, options: bit_length_xs , optionsText : function (item) { return item}, optionsValue :function (item) { return item}, optionsCaption:'Bit Length'">				  
+			  </select> 
+			   <label> Population</label>
+            <select required name="search" id="population" class="form-control ff-rounded" data-bind="value: the_population, options: population_xs , optionsText : function (item) { return item}, optionsValue :function (item) { return item}, optionsCaption:'Population Size'">				  
+			  </select> 
+			  <label> Objective Functions </label>
+			       <select  required name="search" id="runs" class="form-control ff-rounded" data-bind="value: the_function, options: objective_function_xs , optionsText : function (item) { return item.name}, optionsValue :function (item) { return item }, optionsCaption:'Choose Function'">				  
+			  </select>
+			  	</div>
+			   <div class="col-md-12">
+			  <label>Probability of Cross-over </label> <br>
+			  <input style="color:black; width :100%"  data-bind="value:pc" type="text"/>
+			  
+			  	  <label> Cross Locations </label>
+				   <select multiple required name="search" id="runs" class="form-control ff-rounded" data-bind="selectedOptions:cross_locations, options: function () { var x = [];
+				  for ( var i = 0 ; i < the_bit_length() ; i++) {x.push(i)} return x; } () , optionsText : function (item) { return item}, optionsValue :function (item) { return item }, optionsCaption:'Choose Locations'">				  
+			  </select>
+				  
+			  
+			  
+			  </div>
+			  <div class="col-md-12">
+			   <label>Probability of Mutation </label> <br>
+			  <input style="color:black; width :100%"   data-bind="value:pm" type="text"/>
+			  	</div>
+			   <div class="col-md-12">
+			  <label>Iterations </label> <br>
+			  
+			   <select required name="search" id="population" class="form-control ff-rounded" data-bind="value: ga_iter, options: population_xs , optionsText : function (item) { return item * 10}, optionsValue :function (item) { return item * 10}, optionsCaption:'Choose Number of Iterations'">				  
+			  </select> 
+			  
+			  
+			  	</div>
+			   <div class="col-md-12">
+			   <label>Upper Bound </label> <br>
+			  <input style="color:black; width :100%"   data-bind="value:ga_upper_bound" type="text"/>
+			  	</div>
+			   <div class="col-md-12">
+			   <label>Lower Bound </label> <br>
+			  <input  style="color:black; width :100%"   data-bind="value:ga_lower_bound" type="text"/>
+			  
+			</div>
+            
+
+            <div class="col-md-6">
+            <button data-bind="click:run_ga" id="compare_sa_tabu" class="btn btn-primary menu_button"> Run GA </button> 
+           
+            </div> 
+           
+        </div>
+	
+	
   
     
    </div>
