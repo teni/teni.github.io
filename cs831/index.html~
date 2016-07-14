@@ -1,0 +1,357 @@
+
+<!DOCTYPE html>
+
+<html>
+<head>
+
+<link rel="stylesheet" href="lib/bootstrap.min.css" >
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="lib/bootstrap-theme.min.css" >
+
+<!-- Latest compiled and minified JavaScript -->
+<!--<script src="lib/bootstrap.min.js"  ></script> -->
+<script type="text/javascript" src="../code/node.js"> </script>
+<script type="text/javascript" src="../code/graph.js"> </script>
+<script type="text/javascript" src="../lib/d3/d3.min.js"> </script>
+
+<script type="text/javascript" src="../code/search.js"> </script>
+
+<script type="text/javascript" src="../code/p_queue.js"> </script>
+<script type="text/javascript" src="../code/informed_search.js"> </script>
+<script type="text/javascript" src="../code/visualisation.js"> </script>
+<script type="text/javascript" src="../code/main.js"> </script>
+<script type="text/javascript" src="js/knockout-3.3.0.js"> </script>
+
+
+<script>
+var my_nodes = [];
+var b_graph = new graph();
+
+
+var A = new node ("A");
+A.heuristic = 0;
+var B = new node ("B");
+B.heuristic = 50;
+
+var C = new node ("C");
+C.heuristic = 58;
+
+var D = new node ("D");
+D.heuristic = 40;
+
+var E = new node ("E");
+E.heuristic = 45;
+
+var F = new node ("F");
+F.heuristic = 20;
+
+var G = new node ("G");
+G.heuristic = 30;
+
+
+var I = new node ("I");
+I.heuristic = 15;
+
+var J = new node ("J");
+J.heuristic = 9;
+
+var K = new node ("K");
+K.heuristic = 89;
+
+var M = new node ("M");
+M.heuristic = 10;
+
+var O = new node ("O");
+O.heuristic = 30;
+
+var W = new node ("W");
+W.heuristic = 20;
+
+
+
+
+
+
+window.onload = function () {
+
+
+ function GraphView() {
+    var self = this;
+    
+    self.nodes = ko.observableArray([]);
+    self.algorithms = [{"id":1, "name":"Depth First"},{"id":2, "name":"Breadth First"},{"id":3, "name":"A Star"}];
+   
+
+
+  };
+   sc = new GraphView() ;
+   
+ ko.applyBindings(sc);
+
+
+
+var svg = d3.select("div.display").append("svg");
+var w = 800;
+var h = 450;
+svg.attr("width", w);
+svg.attr("height",h);
+
+
+
+  
+
+b_graph.add_edge(A,B,30);  
+
+
+
+b_graph.add_edge(A,C,70);
+b_graph.add_edge(B,D,4);
+
+
+ 
+ b_graph.add_edge(D,F,16); 
+
+b_graph.add_edge(C,E,2);
+ 
+ b_graph.add_edge(E,G,6);
+
+
+
+b_graph.add_edge(D,G,300); 
+b_graph.add_edge(J,K,8);
+
+b_graph.add_edge(G,J,7); 
+  
+ 
+
+b_graph.add_edge(G,I,15);  
+b_graph.add_edge(F,M,25);  
+b_graph.add_edge(M,K,11); 
+
+b_graph.add_edge(K,O,12);  
+b_graph.add_edge(I,K,9);  
+b_graph.add_edge(M,W,15);  
+ b_graph.add_edge(O,W,20); 
+  
+
+for ( var i = 0 ; i < b_graph.nodes.length ; i++ ) {
+
+sc.nodes.push(  {"elem":b_graph.nodes[i],"index":i});
+//my_nodes.push(b_graph.nodes[i]);
+}
+
+graph_info =vis.graph(b_graph,svg  , w,h); 
+
+
+
+/* Get lines from dataset */
+
+/**
+for (var i = 1; i <dataset.length ; i++){
+edge_set.push ( {"id":"O"+dataset[i].node, "x1":dataset[0].cx,"x2":dataset[i].cx, "y1":dataset[0].cy,"y2":dataset[i].cy});
+mid= midpoint(dataset[0].cx, dataset[0].cy,dataset[i].cx, dataset[i].cy);  
+edge_weights.push( {"x":mid[0], "y":mid[1], "value":i+50} );
+
+
+} **/
+
+
+
+
+
+
+
+
+
+svg.select("#OA").attr("stroke", "red");
+
+var add_node = document.getElementById("add_node");
+var add_edge = document.getElementById("add_edge");
+var search_go = document.getElementById("search_go");
+add_node.addEventListener("click", function () { 
+var node_heuristic =document.getElementById("node_heuristic") ;
+var node_label = document.getElementById("node_label");
+
+
+var x = new node (node_label.value);
+x.heuristic = node_heuristic.value;
+sc.nodes.push(  {"elem":x,"index":sc.nodes().length});
+
+
+//b_graph.add_edge(sc.nodes()[sc.nodes().length-2],x, 10 );
+
+//graph_info =vis.graph(b_graph,svg  , w,h); 
+node_heuristic.value = "";
+node_label.value="";
+ } );
+
+add_edge.addEventListener("click", function () { 
+
+var from_node = document.getElementById("from_node"); 
+var to_node = document.getElementById("to_node");
+var weight = document.getElementById("weight");
+
+b_graph.add_edge(sc.nodes()[from_node.value].elem,sc.nodes()[to_node.value].elem, weight.value );
+
+
+console.log(sc.nodes()[from_node.value].elem);
+console.log(sc.nodes()[to_node.value].elem);
+console.log(weight.value);
+graph_info =vis.graph(b_graph,svg  , w,h, undefined);
+weight.value = "";
+});
+
+search_go.addEventListener ("click", function () {
+var search_algorithm = document.getElementById("search_algorithm");
+var sought_node = document.getElementById("sought_node");
+
+switch( search_algorithm.value ) {
+
+case "3":
+var path = informed_search.a_star(b_graph, sc.nodes()[sought_node.value].elem);
+graph_info =vis.graph(b_graph,svg  , w,h, path);
+break;
+case "2":
+var path = search.breadth_first_search(b_graph, sc.nodes()[sought_node.value].elem);
+graph_info =vis.graph(b_graph,svg  , w,h, path);
+break;
+
+case "1":
+var path = search.depth_first_search(b_graph, sc.nodes()[sought_node.value].elem);
+graph_info =vis.graph(b_graph,svg  , w,h, path);
+console.log(path);
+break;
+
+
+
+
+}
+
+
+
+
+});
+
+
+
+
+}
+
+
+</script>
+
+</head>
+
+
+<body>
+<style>
+.menu_button {
+margin-top:24px;
+}
+h4 {
+margin-left : 12px;
+}
+</style>
+<style>
+svg {
+padding: 20px;
+}
+
+
+circle {
+fill: #400;
+stroke: #069;
+stroke-width : 5;
+}
+
+</style>
+
+<div id="display" class="container-fluid">
+
+
+<div class="row-fluid">
+<h3> Search </h3>
+<div class="col-md-8" >
+<div class="display" style="background: rgb(243, 232, 246); min-height : 459px">
+
+</div>
+<div>
+<textarea class="form-control" style="height : 100%"></textarea>
+</div>
+
+</div>
+
+<div class="col-md-4">
+ 
+ 
+        <div class="row" style="background : #EDEEEC; padding : 7px; border-bottom : 1px solid #ccc">
+             <h4> Add a graph </h4>
+            
+            <div class="col-md-8">
+            <label> Select  Preloaded Graphs: </label>
+            <select class="form-control"> <option> Travelling Salesman Problem</option>  </select> </div>
+            <div class="col-md-3">
+            
+            <button class="btn btn-success menu_button"> Add Graph </button></div> 
+        </div>
+        <div class="row"  style="background : #EDEEEC; padding : 7px; border-bottom : 1px solid #ccc">
+             <h4> Add a node </h4>
+            <div class="col-md-4"><label> Label: </label><input id="node_label" class="form-control" type="text" placeholder="Node Label"/>    </div>
+            <div class="col-md-4"><label> Heuristic: </label><input id="node_heuristic" class="form-control" type="text" placeholder="Heuristic"/>    </div>
+            <div class="col-md-4"><button id="add_node" class="btn btn-danger menu_button"> Add Node </button></div> 
+        </div>
+
+  <div class="row"  style="background : #EDEEEC; padding : 7px; border-bottom : 1px solid #ccc" >
+             <h4> Add an Edge </h4>
+            <div class="col-md-4">
+            <label> From Node: </label>
+<select id="from_node" class="form-control ff-rounded" data-bind="options: nodes, optionsText : function (item) { return item.elem.value}, optionsValue :function (item) { return item.index;}, optionsCaption:'Select a Node'">				  
+			  </select>
+
+            <!--<select class="form-control"  > <option> A </option> </select> -->   </div>
+            <div class="col-md-4">
+            <label> To Node: </label>
+            <select id="to_node" class="form-control ff-rounded" data-bind="options: nodes, optionsText : function (item) { return item.elem.value}, optionsValue :function (item) { return item.index;}, optionsCaption:'Select a Node'">				  
+			  </select>    </div>
+
+            <div class="col-md-4">
+            <label> Edge Weight: </label>
+            <input id="weight" class="form-control" type="text" placeholder="Weight"/>
+            </div> 
+            <div class="col-md-4">
+           
+            <button  id ="add_edge" class="btn btn-warning menu_button"> Add Edge </button>    </div>
+        </div>
+
+  <div class="row"  style="background : #0B072C; color:white; padding : 7px; border-bottom : 1px solid #ccc" >
+             <h4> Find A Node </h4>
+            <div class="col-md-6">
+            <label> Search: </label>
+            <select name="search" id="search_algorithm" class="form-control ff-rounded" data-bind="options: algorithms, optionsText : function (item) { return item.name}, optionsValue :function (item) { return item.id}, optionsCaption:'Select Algorithm'">				  
+			  </select>   </div>
+            <div class="col-md-3">
+            <label> Node: </label>
+         <select id="sought_node" class="form-control ff-rounded" data-bind="options: nodes, optionsText : function (item) { return item.elem.value}, optionsValue :function (item) { return item.index;}, optionsCaption:'Select a Node'">				  
+			  </select>    </div>
+
+            <div class="col-md-3">
+            <button id="search_go" class="btn btn-primary menu_button"> GO </button> 
+           
+            </div> 
+           
+        </div>
+    
+
+  
+    
+   </div>
+  
+</div>
+</div>
+
+
+</div>
+</body>
+
+</html>
